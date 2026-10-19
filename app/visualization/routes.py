@@ -452,27 +452,55 @@ def list_skills() -> str:
 
 @web_bp.post("/skills/new")
 def create_skill() -> flask.Response:
-    """Creates a new skill record.
-
-    Raises:
-        NotImplementedError: To be implemented by Team A.
-    """
-    raise NotImplementedError(
-        "TODO (Team A): Implement skill creation"
-    )
-
+    """Creates a new skill record."""
+    if not auth.can_edit_cohort_data():
+        flask.flash("Permission denied for current role.", "danger")
+        return flask.redirect(flask.url_for("visualization_web.list_skills"))
+    
+    raw_skill_id = flask.request.form.get("id", "").strip()
+    skill_id = raw_skill_id.lower()
+    # Validate allowed characters for skill identifiers
+    if not re.match(r"^[a-z0-9_]+$", skill_id):
+        flask.flash(
+            "Skill ID may only contain lowercase letters, digits, and underscores.",
+            "warning",
+        )
+        return flask.redirect(flask.url_for("visualization_web.list_skills"))
+    skill_name = flask.request.form.get("name", "").strip() or skill_id
+    description = flask.request.form.get("description", "").strip()
+    
+    if not skill_id:
+        flask.flash("Skill ID is required.", "warning")
+        return flask.redirect(flask.url_for("visualization_web.list_skills"))
+    
+    repo = repositories.SkillRepository()
+    existing = repo.get_by_id(skill_id)
+    skill = models.Skill(id=skill_id, name=skill_name, description=description)
+    try:
+        repo.save(skill)
+        if existing:
+            flask.flash(f"Skill '{skill_name}' ({skill_id}) updated.", "success")
+        else:
+            flask.flash(f"Skill '{skill_name}' ({skill_id}) created successfully.", "success")
+    except sqlite3.IntegrityError as exc:
+        flask.flash(f"Database constraint error while saving skill: {exc}", "danger")
+    
+    return flask.redirect(flask.url_for("visualization_web.list_skills"))
 
 @web_bp.post("/skills/<skill_id>/delete")
 def delete_skill(skill_id: str) -> flask.Response:
-    """Deletes a skill record.
+    """Deletes a skill record."""
+    if not auth.can_edit_cohort_data():
+        flask.flash("Permission denied for current role.", "danger")
+        return flask.redirect(flask.url_for("visualization_web.list_skills"))
 
-    Raises:
-        NotImplementedError: To be implemented by Team A.
-    """
-    raise NotImplementedError(
-        "TODO (Team A): Implement skill deletion"
-    )
+    try:
+        repositories.SkillRepository().delete(skill_id)
+        flask.flash(f"Skill '{skill_id}' removed.", "info")
+    except Exception as exc:
+        flask.flash(f"Error deleting skill '{skill_id}': {exc}", "danger")
 
+    return flask.redirect(flask.url_for("visualization_web.list_skills"))
 
 @web_bp.get("/preferences")
 def preferences_overview() -> str:
