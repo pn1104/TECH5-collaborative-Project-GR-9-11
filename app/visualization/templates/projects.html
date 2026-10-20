@@ -28,7 +28,6 @@
             <th>Project Title & Scope</th>
             <th>Capacity (Min &ndash; Max)</th>
             <th>Skill Requirements</th>
-            <th>Requirements</th>
             {% if can_edit %}<th>Actions</th>{% endif %}
           </tr>
         </thead>
@@ -51,17 +50,12 @@
                 </td>
                 <td>
                   <!-- Render skill requirement badges (mandatory vs optional) -->
-                   {% if p.skills %}
-                    {%for skill_id, level in p.skills.items() %}
-                      <span class="badge badge-primary me-1">{{ skill_id }} ({{ level }})</span>
-                    {% endfor %}
-                  {% else %}
-                    <span style="color: var(--text-muted); font-style: italic;">None</span>
-                  {% endif %}
-                </td>
-                <td>
                   {% if p.requirements %}
-                    <span class="badge badge-primary">{{ p.requirements|length }} requirements</span>
+                    {% for r in p.requirements %}
+                      <span class="badge {% if r.is_mandatory %}badge-danger{% else %}badge-primary{% endif %} me-1">
+                        {{ r.skill_id }} ({{ r.minimum_level }}){% if r.is_mandatory %} &#9733;{% endif %}
+                      </span>
+                    {% endfor %}
                   {% else %}
                     <span style="color: var(--text-muted); font-style: italic;">None</span>
                   {% endif %}
@@ -69,6 +63,9 @@
                 {% if can_edit %}
                   <td>
                     <a href="{{ url_for('visualization_web.edit_project_form', project_id=p.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+                    <form action="{{ url_for('visualization_web.delete_project', project_id=p.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete project {{ p.id }}? This also removes student preferences and fixed assignments for it.');">
+                      <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
                   </td>
                 {% endif %}
               </tr>
