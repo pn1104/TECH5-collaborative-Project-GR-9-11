@@ -7,6 +7,7 @@ triggering, multi-solution visual comparisons, and recommendations.
 import collections
 import csv
 import io
+import re
 import sqlite3
 from typing import Any
 
@@ -800,16 +801,87 @@ def clear_solutions() -> flask.Response:
 # Comparison & Recommendations
 # -----------------------------------------------------------------------------
 
+def _add_display_names(comparison: models.RunComparison) -> None:
+    """Replaces raw IDs in the comparison with readable names and titles.
+ 
+    Args:
+        comparison: The RunComparison whose changed assignments are updated.
+    """
+    student_names = {
+        s.id: s.display_name
+        for s in repositories.StudentRepository().list_all()
+    }
+    project_titles = {
+        p.id: p.title for p in repositories.ProjectRepository().list_all()
+    }
+ 
+    for change in comparison.changed_assignments:
+        s_id = change.get("student_id")
+        p_a = change.get("project_a_id")
+        p_b = change.get("project_b_id")
+        change["student_name"] = student_names.get(s_id, s_id)
+        change["project_a_title"] = project_titles.get(p_a, p_a)
+        change["project_b_title"] = project_titles.get(p_b, p_b)
 
 @web_bp.get("/compare")
 def compare_solutions() -> Any:
-    """Renders side-by-side comparative analysis of two solutions.
+    """Renders side-by-side comparative analysis of two solutions."""
+    run_repo = repositories.RunRepository()
 
-    Raises:
-        NotImplementedError: To be implemented by Team A.
-    """
-    raise NotImplementedError(
-        "TODO (Team A): Implement side-by-side solution comparison controller"
+    # 1. Collect all solutions from recent runs (for the two dropdowns)
+    all_solutions: list[models.Solution] = []
+    for run in run_repo.list_runs():
+        all_solutions.extend(run.solutions)
+
+    # 2. Read the chosen solution IDs from the URL (?sol1=...&sol2=...)
+    sol1_id = flask.request.args.get("sol1", "").strip()
+    sol2_id = flask.request.args.get("sol2", "").strip()
+
+    # Nothing chosen yet: pre-select the first two alternatives
+    if not sol1_id and not sol2_id and len(all_solutions) >= 2:
+        sol1_id = all_solutions[0].id
+        sol2_id = all_solutions[1].id
+
+    sol_a = run_repo.get_solution(sol1_id) if sol1_id else None
+    sol_b = run_repo.get_solution(sol2_id) if sol2_id else None
+
+    # 3. Ask the engine for the comparison (mock until Team B is done)
+    comparison = None
+    if sol1_id and sol2_id:
+        if sol_a is None or sol_b is None:
+            flask.flash(
+                "One or both selected solutions were not found. "
+                "Run the optimizer first, then choose two solutions.",
+                "warning",
+            )
+        else:
+            engine: contract.AssignmentEngineContract = (
+                solvers.AssignmentEngine()
+            )
+            try:
+                comparison = engine.compare_solutions(sol1_id, sol2_id)
+            except NotImplementedError:
+                flask.flash(
+                    "Notice: comparison metrics are not yet implemented by "
+                    "Team B. Showing MockAssignmentEngine comparison.",
+                    "info",
+                )
+                comparison = mocks.MockAssignmentEngine().compare_solutions(
+                    sol1_id, sol2_id
+                )
+            except KeyError as exc:
+                flask.flash(f"Comparison failed: {exc}", "danger")
+
+            if comparison is not None:
+                _add_display_names(comparison)
+
+    # 4. Show the page
+    return flask.render_template(
+        "compare.html",
+        all_solutions=all_solutions,
+        sol_a=sol_a,
+        sol_b=sol_b,
+        comparison=comparison,
     )
 
 
