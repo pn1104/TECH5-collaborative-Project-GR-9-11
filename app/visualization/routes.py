@@ -9,9 +9,9 @@ import csv
 import io
 import re
 import sqlite3
+import flask 
 from typing import Any
 
-import flask
 
 from app.contract import contract
 from app.contract import mocks
@@ -972,15 +972,74 @@ def _add_display_names(comparison: models.RunComparison) -> None:
         change["project_a_title"] = project_titles.get(p_a, p_a)
         change["project_b_title"] = project_titles.get(p_b, p_b)
 
+# Metrics shown in the multi-solution overview table.
+# Each row: (label, indicator group, indicator key, which direction is better)
+OVERVIEW_METRICS = [
+    ("Average skill fit", "efficiency", "mean_skill_fit", "high"),
+    ("Unmet soft requirements", "efficiency", "unmet_soft_requirements_count", "low"),
+    ("Average preference rank", "fairness", "mean_rank", "low"),
+    ("Worst preference rank", "fairness", "worst_rank", "low"),
+    ("Students outside their preferences", "fairness", "unranked_count", "low"),
+    ("Rank Gini (inequality)", "fairness", "rank_gini", "low"),
+]
+
+
+def _build_overview(solutions: list[models.Solution]) -> list[dict[str, Any]]:
+    """Builds one table row per metric, with the value of every alternative.
+
+    The best value in each row is stored in "best" so the template can
+    highlight it. If all alternatives have the same value, nothing is
+    highlighted ("best" stays None).
+    """
+    rows = []
+    for label, group, key, better in OVERVIEW_METRICS:
+        values = []
+        for s in solutions:
+            values.append(s.indicators.get(group, {}).get(key))
+
+        numbers = [v for v in values if v is not None]
+        best = None
+        if len(set(numbers)) > 1:
+            if better == "high":
+                best = max(numbers)
+            else:
+                best = min(numbers)
+
+        rows.append(
+            {
+                "label": label,
+                "key": key,
+                "better": better,
+                "values": values,
+                "best": best,
+            }
+        )
+    return rows
+
 @web_bp.get("/compare")
+
 def compare_solutions() -> Any:
-    """Renders side-by-side comparative analysis of two solutions."""
     run_repo = repositories.RunRepository()
+    runs = run_repo.list_runs()
 
     # 1. Collect all solutions from recent runs (for the two dropdowns)
     all_solutions: list[models.Solution] = []
-    for run in run_repo.list_runs():
+    for run in runs:
         all_solutions.extend(run.solutions)
+
+    # 2. Multisolution overview: all alternatives of one run side by side
+    run_id = flask.request.args.get("run", "").strip()
+    selected_run = None
+    if run_id:
+        selected_run = run_repo.get_run(run_id)
+        if selected_run is None:
+            flask.flash(f"Run '{run_id}' not found.", "warning")
+    elif runs:
+        selected_run = runs[0]  # newest run by default
+
+    overview = []
+    if selected_run is not None and selected_run.solutions:
+        overview = _build_overview(selected_run.solutions)
 
     # 2. Read the chosen solution IDs from the URL (?sol1=...&sol2=...)
     sol1_id = flask.request.args.get("sol1", "").strip()
@@ -1026,11 +1085,14 @@ def compare_solutions() -> Any:
 
     # 4. Show the page
     return flask.render_template(
-        "compare.html",
-        all_solutions=all_solutions,
-        sol_a=sol_a,
-        sol_b=sol_b,
-        comparison=comparison,
+            "compare.html",
+            runs=runs,
+            selected_run=selected_run,
+            overview=overview,
+            all_solutions=all_solutions,
+            sol_a=sol_a,
+            sol_b=sol_b,
+            comparison=comparison,
     )
 
 
