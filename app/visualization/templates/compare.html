@@ -14,6 +14,75 @@
   </div>
 
   <div class="card-body">
+        <!-- Multi-Solution Overview: all alternatives of one run side by side -->
+    <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem;">All Alternatives at a Glance</h3>
+
+    <form action="{{ url_for('visualization_web.compare_solutions') }}" method="GET" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
+      <div style="flex: 1; min-width: 250px;">
+        <label class="form-label" for="run">Optimization run:</label>
+        <select name="run" id="run" class="form-control">
+          {% for r in runs %}
+            <option value="{{ r.id }}" {% if selected_run and selected_run.id == r.id %}selected{% endif %}>
+              Run {{ r.id[:8] }} &ndash; {{ r.created_at[:16].replace('T', ' ') }} ({{ r.solutions|length }} alternatives)
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary" style="height: 38px;">Show Alternatives</button>
+    </form>
+
+    {% if overview %}
+      <div class="table-responsive" style="margin-bottom: 0.5rem;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              {% for s in selected_run.solutions %}
+                <th>
+                  <a href="{{ url_for('visualization_web.view_solution', solution_id=s.id) }}">Alt #{{ s.alternative_number }}</a><br>
+                  <span class="badge badge-secondary">{{ s.strategy_name }}</span>
+                </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in overview %}
+              <tr>
+                <td>
+                  <strong>{{ row.label }}</strong><br>
+                  <span style="font-size: 0.78rem; color: var(--text-muted);">
+                    {% if row.better == 'high' %}higher is better{% else %}lower is better{% endif %}
+                  </span>
+                </td>
+                {% for v in row["values"] %}
+                  <td>
+                    {% if v is none %}
+                      <span style="color: var(--text-muted);">N/A</span>
+                    {% else %}
+                      {% if row.key == 'mean_skill_fit' %}{% set shown = ((v * 100)|round(1))|string + '%' %}{% else %}{% set shown = v %}{% endif %}
+                      {% if row.best is not none and v == row.best %}
+                        <span class="badge badge-success">&#9733; {{ shown }}</span>
+                      {% else %}
+                        {{ shown }}
+                      {% endif %}
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+        &#9733; = best value in that row. No star means all alternatives are equal on that metric.
+      </p>
+    {% elif selected_run %}
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">This run has no feasible alternatives to compare.</p>
+    {% else %}
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">No runs yet. Run the optimizer first.</p>
+    {% endif %}
+
+    <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 0.75rem;">Detailed Comparison of Two Alternatives</h3>
     <!-- Solution Selector Form -->
     <form action="{{ url_for('visualization_web.compare_solutions') }}" method="GET" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1.5rem; background: #f8fafc; border: 1px solid var(--border-color); padding: 1rem; border-radius: var(--radius-md);">
       <div style="flex: 1; min-width: 250px;">
