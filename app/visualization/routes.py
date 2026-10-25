@@ -949,7 +949,86 @@ def clear_solutions() -> flask.Response:
 # -----------------------------------------------------------------------------
 # Comparison & Recommendations
 # -----------------------------------------------------------------------------
+def generate_recommendations(solutions):
+    """Evaluates all solutions and generates recommendations separating objective evidence from policy advice.
+    
+    Rule: Prioritize minimizing total student rank regret (Efficiency first),
+    using solution balance and fairness as a tie-breaker.
+    
+    Args:
+        solutions: List of Solution objects to evaluate.
+        
+    Returns:
+        list[dict]: List of recommendations ready for the template.
+    """
+    if not solutions:
+        return []
 
+    sorted_solutions = sorted(
+        solutions,
+        key=lambda sol: (sol.indicators.get("efficiency", {}).get("mean_rank", 999),
+                            sol.indicators.get("fairness", {}).get("rank_gini", 0)))
+    
+    recommendations = []
+
+    for index, sol in enumerate(sorted_solutions[:3], start=1):
+        if index == 1:
+            priority = "Primary Recommendation"
+        elif index == 2:
+            priority = "Strong ALternative (High Balance)"
+        else:
+            priority = "Conservative Baseline (Low Risk)"
+        
+        evidence = [
+            f"Average Preference Rank: {sol.indicators.get('fairness', {}).get('mean_rank', 'N/A')}",
+            f"Worst Preference Rank: {sol.indicators.get('fairness', {}).get('worst_rank', 'N/A')}",
+            f"Rank Gini (Inequality): {sol.indicators.get('fairness', {}).get('rank_gini', 'N/A')}"
+        ]
+
+        criteria = [
+            "Student Preference Maximization (Rank Regret minimization)",
+            "Workload & Capacity Equivalence",
+            "Fixed Lock Constraint Preservation"
+        ]
+
+        if index == 1:
+            advice = (
+                f"Solution Alternative #{sol.id} represents the mathematically optimal choice. "
+                f"It achieves the best balance of satisfying student preference ranks while keeping inequality low."
+            )
+        else:
+            advice = (
+                f"Solution Alternative #{sol.id} serves as a viable alternative, offering trade-offs "
+                f"in distribution equity if departmental priorities favor broader spread over strict rank minimization."
+            )
+        recommendations.append({
+            "recommended_alternative_number": sol.id,
+            "recommended_solution_id": sol.id,
+            "priority_focus": priority,
+            "evidence": evidence,
+            "criteria_used": criteria,
+            "advice": advice
+        })
+
+    return recommendations
+
+
+@web_bp.get("/recommendations/<run_id>")
+def view_recommendations(run_id: str) -> Any:
+    """Displays transparent recommendations with evidence and advice."""
+    run = repositories.RunRepository().get_run(run_id)
+    if not run:
+        flask.flash(f"Run '{run_id}' not found.", "danger")
+        return flask.redirect(flask.url_for("visualization_web.dashboard"))
+
+    recs = generate_recommendations(run.solutions)
+
+    return flask.render_template(
+        "recommendations.html",
+        run=run,
+        recommendations=recs,
+    )
+        
 def _add_display_names(comparison: models.RunComparison) -> None:
     """Replaces raw IDs in the comparison with readable names and titles.
  

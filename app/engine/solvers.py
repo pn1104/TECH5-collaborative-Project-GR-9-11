@@ -6,6 +6,7 @@ Distinct alternatives are created with integer no-good cuts.
 """
 
 import abc
+import shutil
 import time
 from typing import Any
 import uuid
@@ -201,10 +202,19 @@ class AssignmentStrategy(abc.ABC):
                 f"no_good_{c}",)
 
         start = time.perf_counter()
-        prob.solve(
-            pulp.PULP_CBC_CMD(
-                msg=False, timeLimit=config.Config.PULP_TIME_LIMIT_SECONDS
-            ))
+        cbc_path = shutil.which("cbc")
+        if cbc_path:
+            solver = pulp.COIN_CMD(
+                path=cbc_path,
+                msg=False,
+                timeLimit=config.Config.PULP_TIME_LIMIT_SECONDS,
+            )
+        else:
+            solver = pulp.PULP_CBC_CMD(
+                msg=False,
+                timeLimit=config.Config.PULP_TIME_LIMIT_SECONDS,
+            )
+        prob.solve(solver)
         status = pulp.LpStatus[prob.status]
         diagnostics: dict[str, Any] ={
             "solver_status": status,
