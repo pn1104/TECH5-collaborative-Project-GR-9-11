@@ -184,8 +184,10 @@ def test_edge_case_6_unknown_skill_in_entity() -> None:
         preferences=[models.Preference("S1", "P1", 1)],
     )
     res = validation.validate_cohort([s1], projects, skills, [])
-    assert any("quantum_computing" in w for w in res.warnings)
-    assert any("cryptography" in w for w in res.warnings)
+    # Team B decision: uncatalogued skills are rejected, not just flagged.
+    assert res.is_valid is False
+    assert any("quantum_computing" in err for err in res.errors)
+    assert any("cryptography" in err for err in res.errors)
 
 
 def test_edge_case_7_aggregate_capacity_deficit() -> None:
