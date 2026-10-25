@@ -1013,22 +1013,6 @@ def generate_recommendations(solutions):
     return recommendations
 
 
-@web_bp.get("/recommendations/<run_id>")
-def view_recommendations(run_id: str) -> Any:
-    """Displays transparent recommendations with evidence and advice."""
-    run = repositories.RunRepository().get_run(run_id)
-    if not run:
-        flask.flash(f"Run '{run_id}' not found.", "danger")
-        return flask.redirect(flask.url_for("visualization_web.dashboard"))
-
-    recs = generate_recommendations(run.solutions)
-
-    return flask.render_template(
-        "recommendations.html",
-        run=run,
-        recommendations=recs,
-    )
-        
 def _add_display_names(comparison: models.RunComparison) -> None:
     """Replaces raw IDs in the comparison with readable names and titles.
  
