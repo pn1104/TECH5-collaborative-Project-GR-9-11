@@ -81,10 +81,12 @@ def test_contract_execute_and_retrieval(tmp_path: pathlib.Path) -> None:
         max_alternatives=2,
     )
 
-    # 1. AssignmentEngine skeleton raises NotImplementedError for Team B
+    # 1. AssignmentEngine executes the run through the contract
     engine: contract.AssignmentEngineContract = solvers.AssignmentEngine()
-    with pytest.raises(NotImplementedError):
-        engine.execute_run(request)
+    engine_run = engine.execute_run(request)
+    assert engine_run.status == "COMPLETED"
+    assert len(engine_run.solutions) == 2
+    assert engine.get_run(engine_run.id) is not None
 
     # 2. MockAssignmentEngine fulfills contract execution and persistence
     mock_engine: contract.AssignmentEngineContract = (
