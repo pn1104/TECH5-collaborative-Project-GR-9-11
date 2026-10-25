@@ -19,13 +19,7 @@
   </div>
 
   <div class="card-body">
-    <!-- TODO (Team A): Implement Project Catalog Table and Capacity Displays -->
-    <div class="alert alert-info" style="margin-bottom: 1.5rem;">
-      <strong>Team A Starter Carcass:</strong>
-      Implement the project table below to display all registered semester projects,
-      their min/max capacity quotas, skill requirements (with mandatory badges), and edit/delete actions.
-    </div>
-
+    <!-- Implement Project Catalog Table and Capacity Displays -->
     <div class="table-responsive">
       <table class="data-table">
         <thead>
@@ -40,7 +34,7 @@
         <tbody>
           {% if projects %}
             {% for p in projects %}
-              <!-- TODO (Team A): Render each project row with capacity and requirement badges -->
+              <!-- Render each project row with capacity and requirement badges -->
               <tr>
                 <td><strong>{{ p.id }}</strong></td>
                 <td>
@@ -55,9 +49,13 @@
                   </span>
                 </td>
                 <td>
-                  <!-- TODO (Team A): Render skill requirement badges (mandatory vs optional) -->
+                  <!-- Render skill requirement badges (mandatory vs optional) -->
                   {% if p.requirements %}
-                    <span class="badge badge-primary">{{ p.requirements|length }} requirements</span>
+                    {% for r in p.requirements %}
+                      <span class="badge {% if r.is_mandatory %}badge-danger{% else %}badge-primary{% endif %} me-1">
+                        {{ r.skill_id }} ({{ r.minimum_level }}){% if r.is_mandatory %} &#9733;{% endif %}
+                      </span>
+                    {% endfor %}
                   {% else %}
                     <span style="color: var(--text-muted); font-style: italic;">None</span>
                   {% endif %}
@@ -65,6 +63,9 @@
                 {% if can_edit %}
                   <td>
                     <a href="{{ url_for('visualization_web.edit_project_form', project_id=p.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+                    <form action="{{ url_for('visualization_web.delete_project', project_id=p.id) }}" method="POST" style="display: inline;" onsubmit="return confirm('Delete project {{ p.id }}? This also removes student preferences and fixed assignments for it.');">
+                      <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
                   </td>
                 {% endif %}
               </tr>

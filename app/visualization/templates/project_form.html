@@ -68,13 +68,23 @@
             </thead>
             <tbody>
               {% for sk in skills %}
+                {# Look up the saved requirement for this skill (edit mode) #}
+                {% set req = namespace(level=0, mandatory=false) %}
+                {% if project %}
+                  {% for r in project.requirements %}
+                    {% if r.skill_id == sk.id %}
+                      {% set req.level = r.minimum_level %}
+                      {% set req.mandatory = r.is_mandatory %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
                 <tr>
                   <td><strong>{{ sk.name }}</strong> (<code>{{ sk.id }}</code>)</td>
                   <td style="width: 150px;">
-                    <input type="number" name="req_level_{{ sk.id }}" min="0" max="5" class="form-control" value="0">
+                    <input type="number" name="req_level_{{ sk.id }}" min="0" max="5" class="form-control" value="{{ req.level }}">
                   </td>
                   <td style="text-align: center; width: 150px;">
-                    <input type="checkbox" name="req_mand_{{ sk.id }}" value="1">
+                    <input type="checkbox" name="req_mand_{{ sk.id }}" value="1" {% if req.mandatory %}checked{% endif %}>
                   </td>
                 </tr>
               {% endfor %}
