@@ -15,30 +15,53 @@ def test_assignment_strategy_abc() -> None:
 
 
 def test_assignment_engine_initialization() -> None:
-    """Verifies that AssignmentEngine initializes cleanly with empty strategies."""
+    """Verifies that AssignmentEngine registers the three strategies."""
     engine = solvers.AssignmentEngine()
     assert isinstance(engine, contract.AssignmentEngineContract)
-    assert isinstance(engine.strategies, dict)
-    assert len(engine.strategies) == 0
+    assert set(engine.strategies) == {"PREFERENCE", "SKILL_FIT", "BALANCED"}
 
 
-def test_assignment_engine_raises_not_implemented() -> None:
-    """Verifies that execute_run raises NotImplementedError for Team B."""
+@pytest.mark.parametrize(
+    "strategy_key", ["PREFERENCE", "SKILL_FIT", "BALANCED"]
+)
+def test_each_strategy_produces_valid_allocation(strategy_key: str) -> None:
+    """Verifies every strategy returns a complete, capacity-feasible run."""
     engine = solvers.AssignmentEngine()
     benchmark = demo_data.get_standard_scenario()
-    request = contract.RunRequest(
+    run = engine.run_assignment(
         students=benchmark["students"],
         projects=benchmark["projects"],
+        skills=benchmark["skills"],
+        strategy_name=strategy_key,
+        max_alternatives=1,
     )
-    with pytest.raises(NotImplementedError) as exc_info:
-        engine.execute_run(request)
-    assert "TODO (Team B)" in str(exc_info.value)
+    assert run.status == "COMPLETED"
+    allocation = run.solutions[0].assignments
+    assert len(allocation) == len(benchmark["students"])
+    for project in benchmark["projects"]:
+        count = sum(1 for a in allocation if a.project_id == project.id)
+        assert project.min_capacity <= count <= project.max_capacity
 
 
-@pytest.mark.xfail(
-    raises=NotImplementedError,
-    reason="TODO (Team B): Implement optimization solver and alternative generation",
-)
+def test_fixed_assignment_is_preserved() -> None:
+    """Verifies a locked student stays on the locked project."""
+    engine = solvers.AssignmentEngine()
+    scenario = demo_data.get_fixed_assignment_scenario()
+    run = engine.run_assignment(
+        students=scenario["students"],
+        projects=scenario["projects"],
+        skills=scenario["skills"],
+        fixed_assignments=scenario["fixed_assignments"],
+        max_alternatives=2,
+    )
+    assert run.status == "COMPLETED"
+    for solution in run.solutions:
+        s02 = solution.get_assignment_for_student("S02")
+        assert s02 is not None
+        assert s02.project_id == "P2"
+        assert s02.is_fixed is True
+
+
 def test_distinct_alternatives_generation() -> None:
     """Verifies AssignmentEngine produces distinct alternatives."""
     benchmark = demo_data.get_standard_scenario()
