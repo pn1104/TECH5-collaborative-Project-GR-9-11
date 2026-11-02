@@ -1,12 +1,12 @@
 """Mathematical optimization solvers and Strategy Pattern for TECH5.
-Implements the binary Integer Linear Program described in the 
-analytical_note_template_md using PuLP and the bundled CBC solver. 
-Three strategies share one constraint set and only differs in their objective function.
-Distinct alternatives are created with integer no-good cuts.
+
+Implements the binary Integer Linear Program described in
+docs/analytical_note_template.md using PuLP and the CBC solver. Three
+strategies share one constraint set and differ only in their objective
+function. Distinct alternatives are created with integer no-good cuts.
 """
 
 import abc
-import shutil
 import time
 from typing import Any
 import uuid
@@ -19,9 +19,10 @@ from app.domain import validation
 from app.engine import metrics
 from app.persistence import repositories
 
+
 def _effective_rank(
     student: models.Student, project_id: str, num_projects: int
-)  -> int:
+) -> int:
     """Returns the stated rank or num_projects + 1 if unranked
 
     Args:
@@ -32,35 +33,27 @@ def _effective_rank(
     Returns:
         The effective rank used by the optimization model
     """
-    rank =student.get_preference_rank(project_id)
+    rank = student.get_preference_rank(project_id)
     return rank if rank is not None else num_projects + 1
 
 
-def _skill_fit(student: models.Student, project: models.Project
-) -> tuple[float,list[str]]:
-    """Computes the skill-fit score sigma and the unmet requirements
+def _skill_fit(
+    student: models.Student, project: models.Project
+) -> tuple[float, list[str]]:
+    """Returns the skill-fit and unmet requirements from the metrics module.
 
     Sigma averages min(1, level / required level) over the project
-    requirements. Projects without requirements is given a neutral fit of 1.
+    requirements. Projects without requirements get a neutral fit of 1.
 
     Args:
-       student: The candidate student.
+        student: The candidate student.
         project: The target project.
 
     Returns:
         A tuple of (skill_fit_score in [0, 1], list_of_unmet_skill_ids).
     """
-    if not project.requirements:
-        return 1.0,[]
-    total =0.0
-    unmet: list[str] =[]
-    for req in project.requirements:
-        level = student.get_skill_level(req.skill_id)
-        required = max(req.minimum_level, 1)
-        total += min(1.0, level / required)
-        if level < req.minimum_level:
-            unmet.append(req.skill_id)
-    return total/len(project.requirements), unmet
+    return metrics.calculate_assignment_skill_fit(student, project)
+
 
 class AssignmentStrategy(abc.ABC):
     """Abstract Base Class for student-to-project allocation strategies.
@@ -96,11 +89,11 @@ class AssignmentStrategy(abc.ABC):
         Returns:
             Utility coefficient of x[s, p] in the maximized objective.
         """
-        
+
     def _add_extra_terms(
-        self, 
+        self,
         prob: pulp.LpProblem,
-        x: dict[tuple[int,int],pulp.LpVariable],
+        x: dict[tuple[int, int], pulp.LpVariable],
         students: list[models.Student],
         projects: list[models.Project],
     ) -> pulp.LpAffineExpression | float:
@@ -130,104 +123,104 @@ class AssignmentStrategy(abc.ABC):
         Args:
             students: List of students in the cohort
             projects: List of available semester projects.
-            fixed_assignments: Pre-assigned student-project pairs that must hold.
+            fixed_assignments: Pre-assigned pairs that must hold.
             excluded_solutions: Earlier allocations, each cut off by a no-good
             cut so that the new solution differs for at least one student.
 
         Returns:
-            A tuple of (solver_status, assignments, objective_value, 
+            A tuple of (solver_status, assignments, objective_value,
             diagnostics). Assignments is empty if no solution was found.
         """
-        fixed_assignments =fixed_assignments or []
-        excluded_solutions= excluded_solutions or []
+        fixed_assignments = fixed_assignments or []
+        excluded_solutions = excluded_solutions or []
         self._num_students = len(students)
-        num_projects= len(projects)
-        s_index ={s.id: i for i,s in enumerate(students)}
-        p_index ={p.id: j for j,p in enumerate(projects)}
+        num_projects = len(projects)
+        s_index = {s.id: i for i, s in enumerate(students)}
+        p_index = {p.id: j for j, p in enumerate(projects)}
 
         prob = pulp.LpProblem(f"assignment_{self.name}", pulp.LpMaximize)
         x = {
             (i, j): pulp.LpVariable(f"x_{i}_{j}", cat=pulp.LpBinary)
-        for i in range(len(students))
-        for j in range(num_projects)
+            for i in range(len(students))
+            for j in range(num_projects)
         }
 
-        #Objective: per-pair utility including strategy-specific extra terms.
+        # Objective: per-pair utility including strategy-specific extra terms.
         utility = pulp.lpSum(
             self.calculate_cost_or_utility(s, p, num_projects) * x[i, j]
             for i, s in enumerate(students)
             for j, p in enumerate(projects)
         )
         extra = self._add_extra_terms(prob, x, students, projects)
-        prob += utility+ extra
+        prob += utility + extra
 
         # (1)Every student is given exactly one project
         for i in range(len(students)):
             prob += (
-                pulp.lpSum(x[i,j] for j in range(num_projects))== 1,
-                f"one_project_{i}", )
+                pulp.lpSum(x[i, j] for j in range(num_projects)) == 1,
+                f"one_project_{i}",
+            )
 
         for j, project in enumerate(projects):
-            load= pulp.lpSum(x[i, j] for i in range(len(students)))
-            #(2) Headcount bounds
+            load = pulp.lpSum(x[i, j] for i in range(len(students)))
+            # (2) Headcount bounds
             prob += load >= project.min_capacity, f"min_cap_{j}"
             prob += load <= project.max_capacity, f"max_cap_{j}"
-            #(4) A non-empty project has a qualified member per mandatory requirement
+            # (4) A non-empty project has a qualified member per
+            # mandatory requirement
             for r, req in enumerate(project.requirements):
                 if not req.is_mandatory:
                     continue
                 qualified = pulp.lpSum(
                     x[i, j]
                     for i, s in enumerate(students)
-                    if s.get_skill_level(req.skill_id) >= req.minimum_level)
+                    if s.get_skill_level(req.skill_id) >= req.minimum_level
+                )
                 prob += (
                     project.max_capacity * qualified >= load,
-                    f"mandatory_{j}_{r}",)
+                    f"mandatory_{j}_{r}",
+                )
 
-        #(3) Fixed assignments
+        # (3) Fixed assignments
         for k, fixed in enumerate(fixed_assignments):
             if fixed.student_id in s_index and fixed.project_id in p_index:
                 i = s_index[fixed.student_id]
                 j = p_index[fixed.project_id]
-                prob += x[i, j]==1, f"fixed_{k}"
+                prob += x[i, j] == 1, f"fixed_{k}"
 
-        #(5) No-good cuts against earlier allocations.
+        # (5) No-good cuts against earlier allocations.
         for c, previous in enumerate(excluded_solutions):
             prob += (
                 pulp.lpSum(
                     x[s_index[s_id], p_index[p_id]]
                     for s_id, p_id in previous
-                    if s_id in s_index and p_id in p_index)
-                <= len(students)-1,
-                f"no_good_{c}",)
+                    if s_id in s_index and p_id in p_index
+                )
+                <= len(students) - 1,
+                f"no_good_{c}",
+            )
 
         start = time.perf_counter()
-        cbc_path = shutil.which("cbc")
-        if cbc_path:
-            solver = pulp.COIN_CMD(
-                path=cbc_path,
-                msg=False,
-                timeLimit=config.Config.PULP_TIME_LIMIT_SECONDS,
+        prob.solve(
+            pulp.PULP_CBC_CMD(
+                msg=False, timeLimit=config.Config.PULP_TIME_LIMIT_SECONDS
             )
-        else:
-            solver = pulp.PULP_CBC_CMD(
-                msg=False,
-                timeLimit=config.Config.PULP_TIME_LIMIT_SECONDS,
-            )
-        prob.solve(solver)
+        )
         status = pulp.LpStatus[prob.status]
-        diagnostics: dict[str, Any] ={
+        diagnostics: dict[str, Any] = {
             "solver_status": status,
             "solve_time_seconds": round(time.perf_counter() - start, 4),
             "variables_count": len(prob.variables()),
-            "constraints_count": prob.numConstraints(),}
+            "constraints_count": prob.numConstraints(),
+        }
 
-        found=(pulp.LpSolutionOptimal, pulp.LpSolutionIntegerFeasible)
+        found = (pulp.LpSolutionOptimal, pulp.LpSolutionIntegerFeasible)
         if prob.sol_status not in found:
             return status, [], None, diagnostics
         if prob.sol_status == pulp.LpSolutionIntegerFeasible:
             diagnostics["warning"] = (
-                "Time limit reached; the solution may not be optimal.")
+                "Time limit reached; the solution may not be optimal."
+            )
 
         fixed_pairs = {(f.student_id, f.project_id) for f in fixed_assignments}
         assignments: list[models.Assignment] = []
@@ -236,19 +229,18 @@ class AssignmentStrategy(abc.ABC):
                 value = x[i, j].value()
                 if value is None or value < 0.5:
                     continue
-                fit,unmet = _skill_fit(student, project)
+                fit, unmet = _skill_fit(student, project)
                 assignments.append(
                     models.Assignment(
                         student_id=student.id,
                         project_id=project.id,
                         is_fixed=(student.id, project.id) in fixed_pairs,
-                        preference_rank=student.get_preference_rank(
-                            project.id
-                        ),
+                        preference_rank=student.get_preference_rank(project.id),
                         skill_fit_score=round(fit, 4),
                         unmet_requirements=unmet,
-                    ))
-        return status, assignments, pulp.value(prob.objective),diagnostics
+                    )
+                )
+        return status, assignments, pulp.value(prob.objective), diagnostics
 
 
 class PreferenceOrientedSolver(AssignmentStrategy):
@@ -259,8 +251,10 @@ class PreferenceOrientedSolver(AssignmentStrategy):
         super().__init__(
             name="PREFERENCE",
             description=(
-                "Minimizes total preference rank. Skill fit is used only to break ties."
-            ),)
+                "Minimizes total preference rank. Skill fit is used only"
+                "to break ties."
+            ),
+        )
 
     def calculate_cost_or_utility(
         self,
@@ -278,10 +272,10 @@ class PreferenceOrientedSolver(AssignmentStrategy):
         Returns:
             Utility coefficient of x[s,p].
         """
-        rank= _effective_rank(student, project.id, max_preferences)
+        rank = _effective_rank(student, project.id, max_preferences)
         fit, _ = _skill_fit(student, project)
-        epsilon = 1.0 /(self._num_students+ 1)
-        return -rank +epsilon * fit
+        epsilon = 1.0 / (self._num_students + 1)
+        return -rank + epsilon * fit
 
 
 class SkillFitOrientedSolver(AssignmentStrategy):
@@ -294,14 +288,15 @@ class SkillFitOrientedSolver(AssignmentStrategy):
             description=(
                 "Maximizes total skill fit; preference rank is used only to "
                 "break ties."
-            ),)
+            ),
+        )
 
     def calculate_cost_or_utility(
         self,
         student: models.Student,
         project: models.Project,
         max_preferences: int,
-        )-> float:
+    ) -> float:
         """Returns sigma-delta*rank with delta = 1e-3/(n *(m + 1)).
 
         Args:
@@ -314,8 +309,8 @@ class SkillFitOrientedSolver(AssignmentStrategy):
         """
         rank = _effective_rank(student, project.id, max_preferences)
         fit, _ = _skill_fit(student, project)
-        delta = 1e-3/(max(self._num_students, 1) * (max_preferences + 1))
-        return fit-delta*rank
+        delta = 1e-3 / (max(self._num_students, 1) * (max_preferences + 1))
+        return fit - delta * rank
 
 
 class BalancedTradeoffSolver(AssignmentStrategy):
@@ -335,9 +330,10 @@ class BalancedTradeoffSolver(AssignmentStrategy):
             description=(
                 "Weighted sum of normalized preference score and skill fit, "
                 "minus a penalty on the worst assigned rank."
-            ),)
-        self.preference_weight=preference_weight
-        self.fairness_weight=fairness_weight
+            ),
+        )
+        self.preference_weight = preference_weight
+        self.fairness_weight = fairness_weight
 
     def calculate_cost_or_utility(
         self,
@@ -355,11 +351,11 @@ class BalancedTradeoffSolver(AssignmentStrategy):
         Returns:
             Utility coefficient of x[s, p]
         """
-        rank=_effective_rank(student, project.id, max_preferences)
-        pref_score= (max_preferences + 1 - rank) / max_preferences
-        fit, _= _skill_fit(student, project)
-        lam =self.preference_weight
-        return lam*pref_score+(1-lam)*fit
+        rank = _effective_rank(student, project.id, max_preferences)
+        pref_score = (max_preferences + 1 - rank) / max_preferences
+        fit, _ = _skill_fit(student, project)
+        lam = self.preference_weight
+        return lam * pref_score + (1 - lam) * fit
 
     def _add_extra_terms(
         self,
@@ -394,7 +390,7 @@ class BalancedTradeoffSolver(AssignmentStrategy):
 
 
 class AssignmentEngine(contract.AssignmentEngineContract):
-    """Main Assignment Engine orchestrating validation, execution, and persistence.
+    """Assignment Engine: validation, execution, and persistence.
 
     Implements the internal component contract (AssignmentEngineContract)
     connecting Component B to Component A.
@@ -445,9 +441,7 @@ class AssignmentEngine(contract.AssignmentEngineContract):
             infeasibility_reasons=list(val_result.infeasibility_reasons),
         )
 
-    def execute_run(
-        self, request: contract.RunRequest
-    ) -> models.AssignmentRun:
+    def execute_run(self, request: contract.RunRequest) -> models.AssignmentRun:
         """Validates, solves for distinct alternatives, and persists the run.
 
         Args:
@@ -463,17 +457,20 @@ class AssignmentEngine(contract.AssignmentEngineContract):
             "engine": "AssignmentEngine (PuLP/CBC ILP)",
             "notes": request.notes,
         }
-        # Tables are created idempotently, so the engine also works when it is used without the Flask app (e.g. directly from tests).
+        # Tables are created idempotently, so the engine also works
+        # when it is used without the Flask app (e.g. directly from tests).
         self.run_repo.db.initialize_schema()
 
-        #1. Validate. Feasibility first: validation also lists its infeasibility reasons under errors.
-        outcome =self.validate_inputs(request)
+        # 1. Validate. Feasibility first: validation also lists its
+        # infeasibility reasons under errors.
+        outcome = self.validate_inputs(request)
         if not outcome.is_feasible or not outcome.is_valid:
             status = (
                 contract.RunStatus.INFEASIBLE
                 if not outcome.is_feasible
-                else contract.RunStatus.INVALID_INPUT)
-            
+                else contract.RunStatus.INVALID_INPUT
+            )
+
             return self._finish(
                 run_id,
                 status,
@@ -486,7 +483,8 @@ class AssignmentEngine(contract.AssignmentEngineContract):
                     "errors": outcome.errors,
                     "warnings": outcome.warnings,
                     "distinct_alternatives": 0,
-                },)
+                },
+            )
 
         strategy = self.strategies.get(request.strategy_key.upper())
         if strategy is None:
@@ -502,7 +500,8 @@ class AssignmentEngine(contract.AssignmentEngineContract):
                         f"Available: {sorted(self.strategies)}."
                     ],
                     "distinct_alternatives": 0,
-                },)
+                },
+            )
 
         # 2. Synchronize entities so solutions satisfy foreign keys
         self._sync_entities(request)
@@ -635,19 +634,14 @@ class AssignmentEngine(contract.AssignmentEngineContract):
             assignments: The allocation to evaluate.
 
         Returns:
-            Indicator dictionary, or {} while metrics are not implemented.
+            Indicator dictionary from the metrics module.
         """
-        try:
-            return metrics.compute_solution_indicators(
-                request.students,
-                request.projects,
-                assignments,
-                request.fixed_assignments,
-            )
-        except NotImplementedError:
-            # TODO(Team B): Remove once metrics.compute_solution_indicators
-            # is implemented.
-            return {}
+        return metrics.compute_solution_indicators(
+            request.students,
+            request.projects,
+            assignments,
+            request.fixed_assignments,
+        )
 
     def run_assignment(
         self,

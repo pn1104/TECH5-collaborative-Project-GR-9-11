@@ -5,9 +5,18 @@
 This guide provides instructors, evaluators, and students with an exact, reproducible walkthrough of the **Student-to-Project Assignment Decision Support System**. It exercises all core functional capabilities across the four benchmark cohorts pre-configured in the platform.
 
 ### Quick Start
-1. Ensure the virtual environment is activated:
+1. Activate the virtual environment and install dependencies:
    ```powershell
+   # Windows
    .\.venv\Scripts\activate
+   ```
+   ```bash
+   # macOS / Linux
+   source .venv/bin/activate
+   ```
+   Then, on any OS:
+   ```bash
+   pip install -r requirements.txt
    ```
 2. Start the integrated application:
    ```powershell
@@ -71,19 +80,20 @@ The Assignment Engine can be invoked directly in Python without starting the web
 ```python
 from app.contract import contract
 from app.engine import solvers
+from app.samples import demo_data
 
 # Initialize the engine (implements contract.AssignmentEngineContract)
+scenario = demo_data.get_standard_scenario()
 engine = solvers.AssignmentEngine()
-
-# Prepare structured run request
 request = contract.RunRequest(
-    primary_strategy="PREFERENCE",
+    students=scenario["students"],
+    projects=scenario["projects"],
+    skills=scenario["skills"],
+    strategy_key="PREFERENCE",
     max_alternatives=3,
 )
-
-# Execute optimization via the internal contract
 outcome = engine.execute_run(request)
-print(f"Status: {outcome.status.value}")
+print(f"Status: {outcome.status}")
 print(f"Solutions generated: {len(outcome.solutions)}")
 for sol in outcome.solutions:
     print(f"Alt {sol.alternative_number} ({sol.strategy_name}): "

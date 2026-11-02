@@ -91,3 +91,37 @@ def test_distinct_alternatives_generation() -> None:
             assert (
                 pairs_i != pairs_j
             ), f"Solution {i+1} and {j+1} are duplicate allocations!"
+
+def test_infeasibility_proven_by_solver() -> None:
+    """Passes validation, but two projects need the only Rust student."""
+    projects = [
+        models.Project(
+            id=p_id,
+            title=p_id,
+            min_capacity=1,
+            max_capacity=2,
+            requirements=[
+                models.ProjectRequirement(p_id, "rust", 4, is_mandatory=True)
+            ],
+        )
+        for p_id in ("P1", "P2")
+    ]
+    students = [
+        models.Student(
+            id="S1",
+            display_name="S1",
+            skills={"rust": 5},
+            preferences=[models.Preference("S1", "P1", 1)],
+        ),
+        models.Student(
+            id="S2",
+            display_name="S2",
+            preferences=[models.Preference("S2", "P2", 1)],
+        ),
+    ]
+    skills = [models.Skill(id="rust", name="Rust")]
+    run = solvers.AssignmentEngine().run_assignment(
+        students, projects, skills, max_alternatives=2
+    )
+    assert run.status == "INFEASIBLE"
+    assert run.diagnostics["solver_status"] == "Infeasible"

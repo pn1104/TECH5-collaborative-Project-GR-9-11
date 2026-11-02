@@ -1,8 +1,8 @@
 # Deliverable 6: Analytical Note & Mathematical Formulation
 ## Student Submission Template — TECH5 Collaborative Project
 
-**Team:** [Team Name / Group Number]  
-**Authors (Team B - Assignment Engine):** [Student Names & IDs]  
+**Team:** ["Group number 9 & 11"]  
+**Authors (Team B - Assignment Engine):** [Olav Gramstad Berstad]  
 **Authors (Team A - Visualization & Recommender):** [Student Names & IDs]  
 **Course:** TECH5 Programming & Application Design, NHH Norwegian School of Economics  
 **Date:** [Submission Date]
@@ -27,8 +27,11 @@
 ### 1.2 Chosen Assignment Methodology & Academic Justification
 *Identify your approved assignment methodology (e.g., Integer Linear Programming with PuLP/CBC, stable matching variant, heuristic search, or bipartite min-cost flow).*
 
-We choose to model the problem as a **Binary Integer Linear Programming**, solved with PuLP/CBC.
-This is appropriate for this problem scale, since only an exact solver can prove that there is no solution, which is required in several cases. 
+We model the problem as a **binary Integer Linear Program (ILP)**, solved with PuLP and the CBC solver.
+- **Exactness:** only an exact solver can prove that no allocation exists (`INFEASIBLE`) and that no further distinct alternative exists (edge cases 13–15).
+- **Side constraints:** mandatory skills constrain the composition of each project, which rules out the Hungarian algorithm and min-cost flow; stable matching ignores skill fit and minimum quotas.
+- **Scale:** the model has $n \cdot m$ binary variables (40 for the demo cohort); each run of three alternatives solves in under 0.3 s.
+
 
 
 ---
@@ -41,23 +44,22 @@ Define the primary index sets used throughout your mathematical model:
 - $P = \{p_1, p_2, \dots, p_m\}$: Set of available semester projects ($|P| = m$).
 - $K = \{k_1, k_2, \dots, k_q\}$: Set of evaluated technical skills ($|K| = q$).
 - $F \subseteq S \times P$: Set of pre-allocated fixed assignment pairs $(s, p)$.
-- $R_p = \subseteq K$: Set of skills required by project $p$. $R_p = \emptyset$ if the project has no requirements.
+- $R_p \subseteq K$: Set of skills required by project $p$. $R_p = \emptyset$ if the project has no requirements.
 - $M \subseteq P \times K$: Set of mandatory requirements, i.e. pairs $(p, k)$ where skill $k \in R_p$ is flagged as mandatory.
--$Q_{p,k} = \{ s \in S : \text{skill}_{s,k} \ge \text{req}_{p, k} \}$: Set of students qualified for requirement ${p, k}$.
+- $Q_{p,k} = \{ s \in S : \text{skill}_{s,k} \ge \text{req}_{p, k} \}$: Set of students qualified for requirement $(p, k)$.
 - $A^{(1)}, \dots, A^{(j)} \subseteq S \times P$: Allocation found in earlier iterations of the same run.
 
 ### 2.2 Model Parameters
 Formally define all input parameters, units, and ranges:
 - $l_p \in \mathbb{Z}_{\ge 0}$: Minimum headcount capacity for project $p$.
 - $u_p \in \mathbb{Z}_{\ge 1}$: Maximum headcount capacity for project $p$ ($l_p \le u_p$).
-- $r_{s,p} \in \{1, 2, \dots, |P|\} \cup \{|P|+1\}$: Stated preference rank of student $s$ for project $p$.
+- $r_{s,p} \in \{1, \dots, m\}$: Stated preference rank of student $s$ for project $p$, if ranked.
 - $\tilde r_{s, p}$: Effective rank used by the model. Unranked projects are not forbidden, but penalised:
   $$\tilde r_{s,p} = \begin{cases} r_{s,p} & \text{if } s \text{ ranked } p \\ m + 1 & \text{otherwise} \end{cases}$$
 - $\pi_{s,p} \in [0,1]$: Normalised preference score (1 =first choice, 0 = unranked):
   $$\pi_{s,p} = \frac{m + 1 - \tilde r_{s,p}}{m}$$
 - $\text{skill}_{s,k} \in \{0, 1, 2, 3, 4, 5\}$: Proficiency of student $s$ in skill $k$.
 - $\text{req}_{p,k} \in \{1, 2, 3, 4, 5\}$: Stated requirement level of project $p$ for skill $k$.
-- $m_{p,k} \in \{0, 1\}$: Binary flag indicating if skill $k$ is mandatory for project $p$.
 - $\sigma_{s,p} \in [0, 1]$: Normalized skill-fit score of student $s$ assigned to project $p$.
   $$\sigma_{s,p} = \begin{cases} \dfrac{1}{|R_p|}\displaystyle\sum_{k \in R_p}\min\!\left(1, \frac{\text{skill}_{s,k}}{\text{req}_{p,k}}\right)& \text{if } R_p \neq \emptyset \\[2ex] 1 & \text{if } R_p = \emptyset \end{cases}$$
 - $\lambda \in [0,1]$, $\mu \ge 0$: Weights of the balanced strategy in 2.5
@@ -84,14 +86,16 @@ Formulate all mandatory system constraints mathematically:
 
 4. **Mandatory Skill Qualification:**
    $$u_p\sum_{s \in Q_{p, k}} x_{s ,p} \;\ge\; \sum_{s \in S} x_{s, p} \quad \forall (p, k) \in M$$
-   *Explanation: If project $p$ has members, at least one meets the requirement. Empty prjects is allowed.*
+   *Explanation: If project $p$ has members, at least one meets the requirement. Empty projects are allowed.*
 
 5. **Distinct Alternative Solutions (No-Good Integer Cuts):**
    $$\sum_{(s, p) \in A^{(i)}} x_{s ,p} \;\le\; n - 1 \quad \forall i =1, \dots, j$$
-   *Explanation: Each alternative solution must move at least one student compared with every previous solution.*
+   *Explanation: Each alternative solution must move at least one
+   student compared with every previous solution.*
 
 6. **Minimax Linking (balanced strategy):**
-  $$z \;\ge\; \sum_{p \in P} \tilde r_{s,p}\, x_{s,p} \quad \forall s \in S$$
+   $$z \;\ge\; \sum_{p \in P} \tilde r_{s,p}\, x_{s,p} \quad \forall s \in S$$
+
 
 ### 2.5 Optimization Objectives & Strategies
 Formulate the objective functions corresponding to your implemented strategies in `solvers.py`:
@@ -105,15 +109,12 @@ Formulate the objective functions corresponding to your implemented strategies i
 
 
 ### 2.6 Solution Procedure & Run Status
-'AssignmentEngine.execute_run' proceeds as given:
-1. Validate the input. Check feasibility first then the validity of the input. 
-2. Build the model with the objective of the requested strategy
-3. For $i=1, \dots, $'max_alternatives': solve with CBC.
-    - If an optimal allocation is found, record it and its no-good cut.
-    - If the model is infeasible at $i =1$, the status is 'INFEASIBLE'
-    - If it becomes infeasible at $i >1$, stop; since all allocations are found
-4. Store information related to the distinct alternatives found
-5. Perform computations for each solution and persist the run.
+`AssignmentEngine.execute_run` proceeds as follows:
+1. **Validate.** If the input is proven infeasible, return `INFEASIBLE` without solving; otherwise, if it is invalid or the strategy is unknown, return `INVALID_INPUT`. Feasibility is checked first, because infeasibility is also reported as a validation error.
+2. **Save the cohort** (students, projects, skills, locks), since solutions reference them in the database.
+3. **Solve** up to `max_alternatives` times with CBC, adding a no-good cut after each solution. Infeasible at $i = 1$ gives `INFEASIBLE`; infeasible at $i > 1$ stops the loop, as all distinct allocations have been found.
+4. **Store** each solution with its assignments, objective value and indicators from `metrics.compute_solution_indicators`.
+5. **Report** `COMPLETED` if at least one solution exists (`FAILED` if the solver stops without one), with diagnostics: solver status, solve time, model size, `distinct_alternatives`, and the message "Only N distinct allocation(s) exist" when fewer than requested.
 
 ---
 
@@ -196,7 +197,8 @@ Document all operational assumptions:
 1. **Student Submission Incompleteness:** A project the student did not rank receives the rank $\tilde r_{s, p}= m+1$. They are permitted but penalised by all strategies.
 2. **Ties in Preferences:** When multiple allocations are optimal, CBC returns one of them. The others appear as alternatives.
 3. **Skill Levels:** A missing skill is counted as level 0. Projects without any requirements are given $\sigma_{s, p} =1$.
-4. **Fixed Assignments:** All fixed assignmetns are hard constraints **[CONFIRM]** 
+4. **Fixed Assignments:** All fixed assignments are hard constraints, as the specification requires locks to be strictly
+preserved.
 5. **Feasibility Boundaries:** Simple capacity and lock checks are done before solving, cases not feasible are detected by the solver and reported as 'INFEASIBLE'. 
 
 ---
