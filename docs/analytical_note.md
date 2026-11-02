@@ -1,11 +1,11 @@
 # Deliverable 6: Analytical Note & Mathematical Formulation
 ## Student Submission Template — TECH5 Collaborative Project
 
-**Team:** Group number 9
-**Authors (Team B - Assignment Engine):** Olav Gramstad Berstad, Emil Lund Skålsvik
-**Authors (Team A - Visualization & Recommender):** [Student Names & IDs]  
+**Team:** Group number 9  
+**Authors (Team B - Assignment Engine):** Olav Gramstad Berstad, Emil Lund Skålsvik  
+**Authors (Team A - Visualization & Recommender):** Lan Nguyen, Maja Karlsen, Paulina Nguyen  
 **Course:** TECH5 Programming & Application Design, NHH Norwegian School of Economics  
-**Date:** [Submission Date]
+**Date:** 2 November 2026
 
 ---
 
@@ -22,7 +22,9 @@
 ### 1.1 Business Context & Decision Dilemma
 *Describe the real-world allocation challenge faced by academic coordinators. Discuss the inherent conflict between collective project quality (skill matching) and individual student satisfaction (preference rank).*
 
-[Provide a 1–2 paragraph summary of the problem, referencing Rezaeinia et al. (2022) for context without copying their proprietary algorithm.]
+A programme coordinator must place every student on exactly one project, within each project's minimum and maximum team size, with mandatory skills covered and fixed assignments respected. Students rank the projects they want, and projects need certain skill levels.
+
+These goals conflict: giving students their preferred projects can leave a project without the skills it needs, while placing students by skill can push many down their lists. Rezaeinia et al. (2022) solve this problem for the CEMS master programme at NHH with a bi-objective integer program that weighs efficiency (total preference utility) against fairness, subject to company requirements. They report a small but real trade-off between the two (the "price of fairness") and clear gains over manual assignment. Our tool produces several alternatives, measures each on the same indicators, and leaves the final choice to the coordinator.
 
 ### 1.2 Chosen Assignment Methodology & Academic Justification
 *Identify your approved assignment methodology (e.g., Integer Linear Programming with PuLP/CBC, stable matching variant, heuristic search, or bipartite min-cost flow).*
@@ -198,20 +200,22 @@ $$\Delta G = G_B - G_A$$
 
 *In accordance with Section 9 of the specification, recommendations must separate calculated evidence from advice across distinct policy priorities.*
 
+The rules are in `generate_recommendations` (`app/engine/recommendations.py`). For each priority, one solution is chosen among the alternatives of a run, using only the indicators of Section 3. The page shows calculated evidence and policy advice in separate blocks. Ties go to the next criterion.
+
 ### 5.1 Policy Priority 1: Student Preference Maximization
-- **Quantitative Selection Criterion:** [e.g., Lexicographic minimization of unranked count, then $\bar{r}$, then $r_{\max}$]
-- **Calculated Evidence Reported:** [List indicators presented to the user]
-- **Administrative Advice & Trade-Off Warning:** [When to apply and what compromises are made]
+- **Quantitative Selection Criterion:** Lexicographic minimisation of $(U, \bar{r}, r_{\max})$.
+- **Calculated Evidence Reported:** $\bar{r}$, $U$, $r_{\max}$ and $\bar{\sigma}$.
+- **Administrative Advice & Trade-Off Warning:** Use when student satisfaction matters most. Skill fit may be lower than in the other alternatives.
 
 ### 5.2 Policy Priority 2: Project Delivery & Technical Competence
-- **Quantitative Selection Criterion:** [e.g., Maximization of mean skill fit $\bar{\sigma}$]
-- **Calculated Evidence Reported:** [List indicators presented to the user]
-- **Administrative Advice & Trade-Off Warning:** [When to apply and what compromises are made]
+- **Quantitative Selection Criterion:** Maximise $\bar{\sigma}$, then minimise the number of unmet soft requirements.
+- **Calculated Evidence Reported:** $\bar{\sigma}$, unmet soft requirements and $\bar{r}$.
+- **Administrative Advice & Trade-Off Warning:** Use when project partners need strong technical teams. More students may get a lower-ranked project.
 
 ### 5.3 Policy Priority 3: Balanced & Egalitarian Compromise
-- **Quantitative Selection Criterion:** [e.g., Multi-objective composite score or Gini minimization]
-- **Calculated Evidence Reported:** [List indicators presented to the user]
-- **Administrative Advice & Trade-Off Warning:** [When to apply and what compromises are made]
+- **Quantitative Selection Criterion:** Lexicographic minimisation of $(G, \text{Var}(\tilde r), \bar{r})$.
+- **Calculated Evidence Reported:** $G$, rank variance, $\bar{\sigma}$ and $\bar{r}$.
+- **Administrative Advice & Trade-Off Warning:** Use to avoid a few students carrying most of the cost. A low $G$ can come with a worse mean rank (Section 3.3), so read it together with $\bar{r}$ and $r_{\max}$.
 
 ---
 

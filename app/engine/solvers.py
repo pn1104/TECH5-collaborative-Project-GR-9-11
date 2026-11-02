@@ -1,7 +1,7 @@
 """Mathematical optimization solvers and Strategy Pattern for TECH5.
 
 Implements the binary Integer Linear Program described in
-docs/analytical_note_template.md using PuLP and the CBC solver. Three
+docs/analytical_note.md using PuLP and the CBC solver. Three
 strategies share one constraint set and differ only in their objective
 function. Distinct alternatives are created with integer no-good cuts.
 """
