@@ -1,8 +1,8 @@
 # Deliverable 6: Analytical Note & Mathematical Formulation
 ## Student Submission Template — TECH5 Collaborative Project
 
-**Team:** ["Group number 9 & 11"]  
-**Authors (Team B - Assignment Engine):** [Olav Gramstad Berstad]  
+**Team:** Group number 9
+**Authors (Team B - Assignment Engine):** Olav Gramstad Berstad, Emil Lund Skålsvik
 **Authors (Team A - Visualization & Recommender):** [Student Names & IDs]  
 **Course:** TECH5 Programming & Application Design, NHH Norwegian School of Economics  
 **Date:** [Submission Date]
