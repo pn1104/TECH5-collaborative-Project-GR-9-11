@@ -1,7 +1,7 @@
 # Deliverable 6: Analytical Note & Mathematical Formulation
-## Student Submission Template — TECH5 Collaborative Project
+## TECH5 Collaborative Project
 
-**Team:** Group number 9  
+**Team:** Development Team 2 (groups 9 and 11)  
 **Authors (Team B - Assignment Engine):** Olav Gramstad Berstad, Emil Lund Skålsvik  
 **Authors (Team A - Visualization & Recommender):** Lan Nguyen, Maja Karlsen, Paulina Nguyen  
 **Course:** TECH5 Programming & Application Design, NHH Norwegian School of Economics  
@@ -9,39 +9,26 @@
 
 ---
 
-> [!IMPORTANT]
-> **Instructions for Students:**  
-> This document serves as the formal deliverable template for **Deliverable 6 (Analytical Note)** as defined in Section 15 and Section 6 of the TECH5 project specification (`projectTech5.tex`).  
->
-> Replace all bracketed text `[...]` with your team's mathematical formulation, indicator derivations, decision criteria, and critical reflections. Maintain rigorous mathematical notation and explain how your analytical design translates directly into your Python implementation in `app/engine/solvers.py` and `app/engine/metrics.py`.
-
----
-
 ## 1. Problem Definition & Mathematical Modeling Approach
 
 ### 1.1 Business Context & Decision Dilemma
-*Describe the real-world allocation challenge faced by academic coordinators. Discuss the inherent conflict between collective project quality (skill matching) and individual student satisfaction (preference rank).*
 
 A programme coordinator must place every student on exactly one project, within each project's minimum and maximum team size, with mandatory skills covered and fixed assignments respected. Students rank the projects they want, and projects need certain skill levels.
 
 These goals conflict: giving students their preferred projects can leave a project without the skills it needs, while placing students by skill can push many down their lists. Rezaeinia et al. (2022) solve this problem for the CEMS master programme at NHH with a bi-objective integer program that weighs efficiency (total preference utility) against fairness, subject to company requirements. They report a small but real trade-off between the two (the "price of fairness") and clear gains over manual assignment. Our tool produces several alternatives, measures each on the same indicators, and leaves the final choice to the coordinator.
 
 ### 1.2 Chosen Assignment Methodology & Academic Justification
-*Identify your approved assignment methodology (e.g., Integer Linear Programming with PuLP/CBC, stable matching variant, heuristic search, or bipartite min-cost flow).*
 
 We model the problem as a **binary Integer Linear Program (ILP)**, solved with PuLP and the CBC solver.
 - **Exactness:** only an exact solver can prove that no allocation exists (`INFEASIBLE`) and that no further distinct alternative exists (edge cases 13–15).
 - **Side constraints:** mandatory skills constrain the composition of each project, which rules out the Hungarian algorithm and min-cost flow; stable matching ignores skill fit and minimum quotas.
 - **Scale:** the model has $n \cdot m$ binary variables (40 for the demo cohort); each run of three alternatives solves in under 0.3 s.
 
-
-
 ---
 
 ## 2. Mathematical Formulation
 
 ### 2.1 Index Sets & Dimensions
-Define the primary index sets used throughout your mathematical model:
 - $S = \{s_1, s_2, \dots, s_n\}$: Set of students in the cohort ($|S| = n$).
 - $P = \{p_1, p_2, \dots, p_m\}$: Set of available semester projects ($|P| = m$).
 - $K = \{k_1, k_2, \dots, k_q\}$: Set of evaluated technical skills ($|K| = q$).
@@ -52,7 +39,6 @@ Define the primary index sets used throughout your mathematical model:
 - $A^{(1)}, \dots, A^{(j)} \subseteq S \times P$: Allocation found in earlier iterations of the same run.
 
 ### 2.2 Model Parameters
-Formally define all input parameters, units, and ranges:
 - $l_p \in \mathbb{Z}_{\ge 0}$: Minimum headcount capacity for project $p$.
 - $u_p \in \mathbb{Z}_{\ge 1}$: Maximum headcount capacity for project $p$ ($l_p \le u_p$).
 - $r_{s,p} \in \{1, \dots, m\}$: Stated preference rank of student $s$ for project $p$, if ranked.
@@ -67,12 +53,10 @@ Formally define all input parameters, units, and ranges:
 - $\lambda \in [0,1]$, $\mu \ge 0$: Weights of the balanced strategy in 2.5
 
 ### 2.3 Decision Variables
-Define your optimization decision variables:
 - $x_{s,p} \in \{0, 1\}$: Binary decision variable equal to $1$ if student $s$ is assigned to project $p$, and $0$ otherwise.
 - $z \in [1, m+1]$: Auxiliary minimax variable equal to the worst effective rank received by any student.
 
 ### 2.4 Hard Mathematical Constraints
-Formulate all mandatory system constraints mathematically:
 
 1. **Exact Allocation Constraint:**
    $$\sum_{p \in P} x_{s,p} = 1 \quad \forall s \in S$$
@@ -98,9 +82,7 @@ Formulate all mandatory system constraints mathematically:
 6. **Minimax Linking (balanced strategy):**
    $$z \;\ge\; \sum_{p \in P} \tilde r_{s,p}\, x_{s,p} \quad \forall s \in S$$
 
-
 ### 2.5 Optimization Objectives & Strategies
-Formulate the objective functions corresponding to your implemented strategies in `solvers.py`:
 
 - **Strategy 1: Preference-Oriented (Minimize Regret)**
   $$\min Z_{\text{pref}} = \sum_{s \in S} \sum_{p \in P} \tilde r_{s,p}\, x_{s,p} \;-\; \varepsilon \sum_{s \in S} \sum_{p \in P} \sigma_{s,p}\, x_{s,p}, \qquad \varepsilon = \frac{1}{n + 1}$$
@@ -108,7 +90,6 @@ Formulate the objective functions corresponding to your implemented strategies i
   $$\max Z_{\text{skill}} = \sum_{s \in S} \sum_{p \in P} \sigma_{s,p}\, x_{s,p} \;-\; \delta \sum_{s \in S} \sum_{p \in P} \tilde r_{s,p}\, x_{s,p}, \qquad \delta = \frac{10^{-3}}{n\,(m + 1)}$$
 - **Strategy 3: Balanced Trade-Off (Compromise)**
   $$\max Z_{\text{bal}} = \sum_{s \in S} \sum_{p \in P} \big(\lambda\, \pi_{s,p} + (1 - \lambda)\, \sigma_{s,p}\big)\, x_{s,p} \;-\; \mu\, \frac{z - 1}{m}$$
-
 
 ### 2.6 Solution Procedure & Run Status
 `AssignmentEngine.execute_run` proceeds as follows:
@@ -145,7 +126,6 @@ The solver enforces the constraints of Section 2.4, but the metrics check them a
   *Meaning: the average effective rank. 1.0 means every student got their first choice; lower is better. In the application it is grouped with the fairness indicators, since it describes student outcomes.*
 
 ### 3.3 Fairness Indicators
-*Section 6.3 of the specification mandates: rank distribution, unranked count, worst assigned rank, and ONE proposed and justified fairness indicator.*
 
 1. **Rank Distribution:** Histogram vector $[c_1, c_2, \dots, c_m, c_{\text{unranked}}]$ where $c_k = |\{s \in S : \tilde r_s = k\}|$ and $c_{\text{unranked}} = |\{s \in S : \tilde r_s = m+1\}|$. It shows what an average hides, e.g. whether a mean rank of 1.8 comes from many second choices or from a few very poor outcomes.
 2. **Unranked Allocation Count ($U$):** $U = c_{\text{unranked}}$, the number of students placed outside their submitted list, also given as a percentage of $n$. Each of them is likely to be dissatisfied and may need a justification, so the application lists them by name.
@@ -198,8 +178,6 @@ $$\Delta G = G_B - G_A$$
 
 ## 5. Transparent Recommendation Rules
 
-*In accordance with Section 9 of the specification, recommendations must separate calculated evidence from advice across distinct policy priorities.*
-
 The rules are in `generate_recommendations` (`app/engine/recommendations.py`). For each priority, one solution is chosen among the alternatives of a run, using only the indicators of Section 3. The page shows calculated evidence and policy advice in separate blocks. Ties go to the next criterion.
 
 ### 5.1 Policy Priority 1: Student Preference Maximization
@@ -221,7 +199,6 @@ The rules are in `generate_recommendations` (`app/engine/recommendations.py`). F
 
 ## 6. Assumptions, Boundary Conditions & Edge Cases
 
-Document all operational assumptions:
 1. **Student Submission Incompleteness:** A project the student did not rank receives the rank $\tilde r_{s, p}= m+1$. They are permitted but penalised by all strategies.
 2. **Ties in Preferences:** When multiple allocations are optimal, CBC returns one of them. The others appear as alternatives.
 3. **Skill Levels:** A missing skill is counted as level 0. Projects without any requirements are given $\sigma_{s, p} =1$.
