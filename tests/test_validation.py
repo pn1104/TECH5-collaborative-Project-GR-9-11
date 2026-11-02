@@ -100,7 +100,7 @@ def test_aggregate_capacity_deficit() -> None:
     assert any("Insufficient overall capacity" in err for err in res.errors)
 
 
-# --- Helpers for the tests below -------------------------------------------
+# --- Helpers for the tests below ---------------------------------------------
 
 
 def _student(
@@ -123,7 +123,9 @@ def _student(
 def _projects(*ids: str, min_cap: int = 0, max_cap: int = 3) -> list:
     """Builds simple projects without requirements."""
     return [
-        models.Project(id=p, title=p, min_capacity=min_cap, max_capacity=max_cap)
+        models.Project(
+            id=p, title=p, min_capacity=min_cap, max_capacity=max_cap
+        )
         for p in ids
     ]
 
@@ -185,7 +187,7 @@ def test_invalid_requirement_level_does_not_crash() -> None:
     assert any("requires invalid level None" in e for e in res.errors)
 
 
-# --- Preferences ---------------------------------------------------------------
+# --- Preferences -------------------------------------------------------------
 
 
 def test_fewer_than_three_preferences_warns() -> None:
@@ -253,10 +255,30 @@ def test_tied_ranks_and_gaps_only_warn() -> None:
             models.Preference("S2", "P3", 4),
         ],
     )
-    res = validation.validate_cohort([tied, gaps], _projects("P1", "P2", "P3"))
+    res = validation.validate_cohort(
+        [tied, gaps], _projects("P1", "P2", "P3", "P4")
+    )
     assert res.is_valid is True
     assert any("'S1' has duplicate rank 1" in w for w in res.warnings)
     assert any("'S2' has gaps" in w for w in res.warnings)
+
+
+def test_rank_above_number_of_projects_is_rejected() -> None:
+    """A rank above m would rate a listed project below an unranked one."""
+    student = models.Student(
+        id="S1",
+        display_name="S1",
+        preferences=[
+            models.Preference("S1", "P1", 1),
+            models.Preference("S1", "P2", 9),
+        ],
+    )
+    res = validation.validate_cohort([student], _projects("P1", "P2", "P3"))
+    assert res.is_valid is False
+    assert any(
+        "rank 9 for project 'P2'" in e and "ranks must be 1 to 3" in e
+        for e in res.errors
+    )
 
 
 def test_preference_listed_under_wrong_student_is_rejected() -> None:
@@ -271,7 +293,7 @@ def test_preference_listed_under_wrong_student_is_rejected() -> None:
     assert any("belongs to student 'S2'" in e for e in res.errors)
 
 
-# --- Mandatory skills ------------------------------------------------------------
+# --- Mandatory skills --------------------------------------------------------
 
 
 def test_unfillable_optional_project_is_only_a_warning() -> None:
@@ -303,7 +325,9 @@ def test_unqualified_student_may_be_fixed_to_project() -> None:
     ]
     projects = [_rust_project("P1", min_cap=0)] + _projects("P2")
     fixed = [models.FixedAssignment("S1", "P1")]
-    res = validation.validate_cohort(students, projects, fixed_assignments=fixed)
+    res = validation.validate_cohort(
+        students, projects, fixed_assignments=fixed
+    )
     assert res.is_feasible is True
 
 
@@ -315,7 +339,9 @@ def test_qualified_students_all_fixed_elsewhere() -> None:
     ]
     projects = [_rust_project("P1", min_cap=1)] + _projects("P2")
     fixed = [models.FixedAssignment("S1", "P2")]
-    res = validation.validate_cohort(students, projects, fixed_assignments=fixed)
+    res = validation.validate_cohort(
+        students, projects, fixed_assignments=fixed
+    )
     assert res.is_feasible is False
     assert any(
         "fixed to another project" in r for r in res.infeasibility_reasons
@@ -330,7 +356,9 @@ def test_project_filled_by_unqualified_locks() -> None:
     ]
     projects = [_rust_project("P1", min_cap=0, max_cap=1)] + _projects("P2")
     fixed = [models.FixedAssignment("S1", "P1")]
-    res = validation.validate_cohort(students, projects, fixed_assignments=fixed)
+    res = validation.validate_cohort(
+        students, projects, fixed_assignments=fixed
+    )
     assert res.is_feasible is False
     assert any(
         "filled by fixed assignments" in r for r in res.infeasibility_reasons
@@ -343,10 +371,12 @@ def test_empty_projects_reduce_usable_capacity() -> None:
     projects = [_rust_project("P1", min_cap=0)] + _projects("P2", max_cap=2)
     res = validation.validate_cohort(students, projects)
     assert res.is_feasible is False
-    assert any("Only 2 places are usable" in r for r in res.infeasibility_reasons)
+    assert any(
+        "Only 2 places are usable" in r for r in res.infeasibility_reasons
+    )
 
 
-# --- Fixed assignments -------------------------------------------------------------
+# --- Fixed assignments -------------------------------------------------------
 
 
 def test_repeated_identical_lock_is_counted_once() -> None:
@@ -381,9 +411,13 @@ def test_locks_and_minimums_exceed_cohort() -> None:
         models.Project(id="P2", title="P2", min_capacity=2, max_capacity=3),
     ]
     fixed = [models.FixedAssignment(s, "P1") for s in ("S1", "S2")]
-    res = validation.validate_cohort(students, projects, fixed_assignments=fixed)
+    res = validation.validate_cohort(
+        students, projects, fixed_assignments=fixed
+    )
     assert res.is_feasible is False
-    assert any("together need 4 students" in r for r in res.infeasibility_reasons)
+    assert any(
+        "together need 4 students" in r for r in res.infeasibility_reasons
+    )
 
 
 def test_demo_scenario_is_clean() -> None:

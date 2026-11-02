@@ -479,10 +479,16 @@ def test_compare_output_fits_run_comparison_model() -> None:
     asg_a = [_asg("S1", "P1", 1), _asg("S2", "P2", 2)]
     asg_b = [_asg("S1", "P2", 2), _asg("S2", "P1", 1)]
     sol_a = _sol(
-        "a", 1, asg_a, metrics.compute_solution_indicators(students, projects, asg_a)
+        "a",
+        1,
+        asg_a,
+        metrics.compute_solution_indicators(students, projects, asg_a),
     )
     sol_b = _sol(
-        "b", 2, asg_b, metrics.compute_solution_indicators(students, projects, asg_b)
+        "b",
+        2,
+        asg_b,
+        metrics.compute_solution_indicators(students, projects, asg_b),
     )
     comparison = models.RunComparison.from_dict(
         metrics.compare_two_solutions(sol_a, sol_b)

@@ -47,7 +47,7 @@ def calculate_assignment_skill_fit(
     student: models.Student,
     project: models.Project,
 ) -> tuple[float, list[str]]:
-    """Calculates skill fit score and unmet requirements for a student-project pair.
+    """Calculates skill fit and unmet requirements for a student-project pair.
 
     In compliance with Section 7.2 of the TECH5 specification, skill fit
     evaluates how well the candidate student satisfies the required technical
@@ -68,19 +68,19 @@ def calculate_assignment_skill_fit(
     if not project.requirements:
         return 1.0, []
 
-    credits: list[float] = []
+    scores: list[float] = []
     unmet: list[str] = []
     for req in project.requirements:
         level = student.get_skill_level(req.skill_id)
         required = req.minimum_level
         if required <= 0:
-            credits.append(1.0)
+            scores.append(1.0)
             continue
-        credits.append(min(1.0, level / float(required)))
+        scores.append(min(1.0, level / float(required)))
         if level < required and req.skill_id not in unmet:
             unmet.append(req.skill_id)
 
-    return _mean(credits), unmet
+    return _mean(scores), unmet
 
 
 def calculate_gini(values: list[float]) -> float:
@@ -88,7 +88,8 @@ def calculate_gini(values: list[float]) -> float:
 
     In compliance with Section 7.3 of the TECH5 specification, the Gini
     coefficient measures the inequality/fairness in student preference rank
-    distribution (0.0 represents perfect equality, 1.0 represents extreme inequality).
+    distribution (0.0 represents perfect equality, 1.0 represents extreme
+    inequality).
 
     Uses the sorted form G = 2 * sum(i * x_(i)) / (n * sum(x)) - (n + 1) / n,
     which equals the mean absolute difference formula but runs in
@@ -194,7 +195,9 @@ def _feasibility(
 
     # 3. Fixed assignment adherence (identical duplicate locks count once).
     unique_locks = list(
-        dict.fromkeys((fa.student_id, fa.project_id) for fa in fixed_assignments)
+        dict.fromkeys(
+            (fa.student_id, fa.project_id) for fa in fixed_assignments
+        )
     )
     fixed_respected = 0
     for student_id, project_id in unique_locks:
@@ -259,11 +262,12 @@ def compute_solution_indicators(
 ) -> dict[str, Any]:
     """Computes comprehensive feasibility, efficiency, and fairness indicators.
 
-    Evaluates a solution across the four dimensions defined in the specification:
+    Evaluates a solution across the four dimensions of the specification:
     1. Feasibility: Exact student count, capacity bounds, fixed assignments.
     2. Efficiency: Mean skill-fit score, unmet soft requirements count.
     3. Fairness: Rank distribution, mean rank, worst rank, unranked count, Gini.
-    4. Capacity: Total assigned, total capacity, overall utilization, per-project.
+    4. Capacity: Total assigned, total capacity, overall and per-project
+       utilization.
 
     Efficiency and fairness are measured over the students that have a valid
     assignment (their first one if a student appears more than once); any
@@ -280,8 +284,10 @@ def compute_solution_indicators(
         {
             "feasibility": {"is_feasible": bool, "violations": list[str], ...},
             "efficiency": {"mean_skill_fit": float, ...},
-            "fairness": {"mean_rank": float, "worst_rank": int, "rank_gini": float, ...},
-            "capacity": {"overall_utilization_pct": float, "projects": dict, ...}
+            "fairness": {"mean_rank": float, "worst_rank": int,
+                         "rank_gini": float, ...},
+            "capacity": {"overall_utilization_pct": float,
+                         "projects": dict, ...}
         }
     """
     fixed_assignments = fixed_assignments or []
@@ -389,7 +395,9 @@ def compute_solution_indicators(
         "total_min_capacity": sum(p.min_capacity for p in projects),
         "free_places": total_capacity - total_assigned,
         "overall_utilization_pct": _pct(total_assigned, total_capacity),
-        "full_projects": [pid for pid, d in per_project.items() if d["is_full"]],
+        "full_projects": [
+            pid for pid, d in per_project.items() if d["is_full"]
+        ],
         "empty_projects": [
             pid for pid, d in per_project.items() if d["is_empty"]
         ],
@@ -510,7 +518,9 @@ def _trade_off_summary(
             )
     if rank and rank["delta"] is not None:
         if rank["direction"] == "tie":
-            lines.append(f"Mean preference rank is unchanged ({_fmt(rank['a'])}).")
+            lines.append(
+                f"Mean preference rank is unchanged ({_fmt(rank['a'])})."
+            )
         else:
             verb = "improves" if rank["delta"] < 0 else "worsens"
             lines.append(
@@ -548,16 +558,22 @@ def _trade_off_summary(
         f_dir, r_dir = fit["direction"], rank["direction"]
         if f_dir == "better" and r_dir == "worse":
             lines.append(
-                "Trade-off: B gains skill fit at the cost of student preferences."
+                "Trade-off: B gains skill fit at the cost of student "
+                "preferences."
             )
         elif f_dir == "worse" and r_dir == "better":
             lines.append(
-                "Trade-off: B gains student preferences at the cost of skill fit."
+                "Trade-off: B gains student preferences at the cost of "
+                "skill fit."
             )
         elif "worse" not in (f_dir, r_dir) and "better" in (f_dir, r_dir):
-            lines.append("B is at least as good as A on skill fit and mean rank.")
+            lines.append(
+                "B is at least as good as A on skill fit and mean rank."
+            )
         elif "better" not in (f_dir, r_dir) and "worse" in (f_dir, r_dir):
-            lines.append("A is at least as good as B on skill fit and mean rank.")
+            lines.append(
+                "A is at least as good as B on skill fit and mean rank."
+            )
     return lines
 
 
