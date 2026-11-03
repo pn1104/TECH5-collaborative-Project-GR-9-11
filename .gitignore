@@ -4,5 +4,7 @@ __pycache__/
 *$py.class
 .pytest_cache/
 instance/*.db
+instance/*.db-shm
+instance/*.db-wal
 instance/*.sqlite
 .agents/

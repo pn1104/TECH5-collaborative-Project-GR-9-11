@@ -3,7 +3,7 @@
 
 > [!IMPORTANT]
 > **Starter Carcass Notice:**  
-> This document outlines the analytical requirements for the Student-to-Project Assignment System. Student teams must formulate their own mathematical model, implement it in `app/engine/solvers.py` and `app/engine/metrics.py`, and complete their formal submission using the template provided in [`docs/analytical_note_template.md`](analytical_note_template.md).
+> This document outlines the analytical requirements for the Student-to-Project Assignment System. Student teams must formulate their own mathematical model, implement it in `app/engine/solvers.py` and `app/engine/metrics.py`, and complete their formal submission using the template provided in [`docs/analytical_note.md`](analytical_note.md).
 
 ---
 
@@ -64,7 +64,7 @@ Section 6 of `projectTech5.tex` specifies four categories of analytical indicato
 ## 4. Deliverable 6 Requirements
 
 Student teams must submit their formal **Analytical Note** as Deliverable 6.  
-Use the provided template: **[`docs/analytical_note_template.md`](analytical_note_template.md)**.
+Use the provided template: **[`docs/analytical_note.md`](analytical_note.md)**.
 
 The report will be assessed on:
 - Formal, unambiguous mathematical notation (sets, indices, parameters, decision variables, constraints, objective functions).

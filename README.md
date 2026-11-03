@@ -39,7 +39,7 @@ TECH5Project/
 │       └── static/           # CSS stylesheets & client assets
 ├── assignment/               # Course assignment brief (projectTech5.tex)
 ├── docs/                     # Deliverable documentation & student templates
-│   ├── analytical_note_template.md   # Deliverable 6 template for student report
+│   ├── analytical_note.md            # Deliverable 6: analytical note
 │   ├── analytical_formulation.md     # Analytical requirements & modeling guide
 │   ├── architecture.md               # System architecture & design patterns
 │   ├── database_design.md            # ERD, 3NF schema, & analytical SQL queries
@@ -74,7 +74,7 @@ The project is designed for two collaborating student development teams:
   - Implement `calculate_gini(...)` (Gini coefficient of preference ranks $G$).
   - Implement `calculate_solution_indicators(...)` (feasibility, efficiency, fairness, capacity utilization).
   - Implement `compare_solutions(...)` (comparative indicator deltas and changed student allocations).
-- **Analytical Note**: Complete the formal mathematical report using [`docs/analytical_note_template.md`](docs/analytical_note_template.md).
+- **Analytical Note**: The formal mathematical report is in [`docs/analytical_note.md`](docs/analytical_note.md).
 
 ---
 

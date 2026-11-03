@@ -219,10 +219,16 @@ def _check_preferences(
 ) -> None:
     """Checks each student's ranked preferences.
 
-    Errors: unknown project, project ranked twice, rank below 1 or not an
-    integer, preference owned by another student. Warnings: no or fewer
-    than three preferences, tied ranks, gaps in the ranking.
+    Errors: unknown project, project ranked twice, rank not an integer from
+    1 to m (m = number of projects), preference owned by another student.
+    Warnings: no or fewer than three preferences, tied ranks, gaps in the
+    ranking.
+
+    A rank above m is rejected because an unranked project counts as rank
+    m + 1: a stated rank above that would rate a listed project worse than
+    one the student did not list at all.
     """
+    num_projects = len(project_ids)
     for student in students:
         if not student.preferences:
             result.warnings.append(
@@ -256,6 +262,13 @@ def _check_preferences(
                 result.errors.append(
                     f"Student '{student.id}' has invalid rank {pref.rank!r} "
                     f"for project '{pref.project_id}' (must be 1 or higher)."
+                )
+                continue
+            if num_projects and pref.rank > num_projects:
+                result.errors.append(
+                    f"Student '{student.id}' has rank {pref.rank} for project "
+                    f"'{pref.project_id}', but there are only {num_projects} "
+                    f"projects (ranks must be 1 to {num_projects})."
                 )
                 continue
             if pref.rank in seen_ranks:
